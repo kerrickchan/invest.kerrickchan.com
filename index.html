@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>现金流时间分布图 | 财富积累可视化</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 20px;
+            background: linear-gradient(90deg, #1a3a5f, #2c5282);
+            color: white;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .chart-title {
+            font-size: 1.8rem;
+            color: #2c5282;
+            font-weight: 600;
+        }
+        
+        .legend {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+        
+        #cashflow-chart {
+            width: 100%;
+            height: 500px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 10;
+            backdrop-filter: blur(4px);
+        }
+        
+        .tooltip h3 {
+            margin-bottom: 8px;
+            color: #2c5282;
+            font-size: 1.1rem;
+        }
+        
+        .tooltip p {
+            margin: 5px 0;
+        }
+        
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h3 {
+            color: #2c5282;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card-icon {
+            width: 36px;
+            height: 36px;
+            background: #e6f0ff;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #2c5282;
+            font-size: 1.2rem;
+        }
+        
+        .card ul {
+            padding-left: 20px;
+            margin-top: 15px;
+        }
+        
+        .card li {
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .card li strong {
+            color: #2c5282;
+        }
+        
+        .phase-highlight {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .short-term { background: rgba(66, 153, 225, 0.1); border-left: 4px solid #4299e1; }
+        .mid-term { background: rgba(245, 101, 101, 0.1); border-left: 4px solid #f56565; }
+        .long-term { background: rgba(237, 137, 54, 0.1); border-left: 4px solid #ed8936; }
+        
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 40px;
+            color: #718096;
+            font-size: 0.95rem;
+            border-top: 1px solid #e2e8f0;
+        }
+        
+        .quote {
+            font-style: italic;
+            max-width: 700px;
+            margin: 20px auto;
+            padding: 15px 20px;
+            background: rgba(44, 82, 130, 0.05);
+            border-radius: 8px;
+            line-height: 1.7;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .legend {
+                width: 100%;
+                justify-content: space-between;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>现金流时间分布图</h1>
+            <p class="subtitle">可视化不同财富积累策略随时间产生的现金流变化，帮助您理解短期、中期和长期投资策略的收益特征</p>
+        </header>
+        
+        <div class="chart-container">
+            <div class="chart-header">
+                <h2 class="chart-title">现金流随时间变化趋势图</h2>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #4299e1;"></div>
+                        <span>短期爆发型（副业/轻创业）</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #f56565;"></div>
+                        <span>中期稳定型（股息/REITs）</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ed8936;"></div>
+                        <span>长期指数型（房产/版权）</span>
+                    </div>
+                </div>
+            </div>
+            <div id="cashflow-chart"></div>
+            <div class="tooltip"></div>
+        </div>
+        
+        <div class="info-cards">
+            <div class="card">
+                <h3><div class="card-icon">🚀</div>短期现金流策略（0-12个月）</h3>
+                <p>快速产生现金流的方案，适合初期积累启动资金：</p>
+                <ul>
+                    <li><strong>副业开发</strong>：利用专业技能接案（设计/翻译/编程）</li>
+                    <li><strong>轻资产创业</strong>：社区团购、二手交易、代运营服务</li>
+                    <li><strong>平台经济</strong>：知识付费、社交媒体变现</li>
+                </ul>
+                <div class="phase-highlight short-term">
+                    <strong>关键特征：</strong> 前3个月即可产生收入，但需要持续投入时间精力，收益天花板较低
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><div class="card-icon">📈</div>中期现金流策略（1-3年）</h3>
+                <p>构建稳定被动收入的基础，实现财富自动增长：</p>
+                <ul>
+                    <li><strong>股息投资</strong>：选择连续5年分红的蓝筹股组合</li>
+                    <li><strong>REITs基金</strong>：不动产证券化投资，门槛低流动性好</li>
+                    <li><strong>债券基金</strong>：中低风险固定收益产品</li>
+                </ul>
+                <div class="phase-highlight mid-term">
+                    <strong>关键特征：</strong> 6-12个月进入稳定期，复利效应开始显现，收益呈阶梯式增长
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><div class="card-icon">🚀</div>长期现金流策略（3年以上）</h3>
+                <p>打造指数增长的被动收入系统，实现财务自由：</p>
+                <ul>
+                    <li><strong>房产租赁</strong>：核心地段不动产长期持有</li>
+                    <li><strong>版权收入</strong>：数字产品（课程/模板/媒体内容）</li>
+                    <li><strong>企业股权</strong>：优质公司股权长期持有</li>
+                </ul>
+                <div class="phase-highlight long-term">
+                    <strong>关键特征：</strong> 18个月后增速明显加快，后期呈指数级增长，真正实现"睡后收入"
+                </div>
+            </div>
+        </div>
+        
+        <div class="quote">
+            "财富积累如同竹子生长 - 前4年仅长3厘米，第5年开始每天疯长30厘米。现金流建设初期的缓慢不是停滞，而是在扎根。当分红的叮咚声第一次在睡梦中响起时，你会明白那些看似枯燥的记账夜晚，都是通往自由的台阶。"
+        </div>
+        
+        <footer>
+            <p>现金流时间分布分析图 | 数据可视化展示 | © 2023 财富增长研究院</p>
+            <p>注：图表数据基于月投入3000元、年化收益4%-12%的模拟计算，实际收益因市场波动和个人执行力而异</p>
+        </footer>
+    </div>
+
+    <script>
+        // 模拟现金流数据
+        const generateData = () => {
+            const data = [];
+            
+            // 时间范围：0-36个月
+            for (let month = 0; month <= 36; month++) {
+                // 短期现金流（副业/轻创业）
+                let shortTerm = 0;
+                if (month <= 6) {
+                    shortTerm = Math.pow(month, 1.8) * 100;
+                } else if (month <= 18) {
+                    shortTerm = 1800 + (month - 6) * 100;
+                } else {
+                    shortTerm = 3000 - (month - 18) * 50;
+                }
+                
+                // 中期现金流（股息/REITs）
+                let midTerm = 0;
+                if (month <= 6) {
+                    midTerm = Math.pow(month, 1.2) * 15;
+                } else if (month <= 18) {
+                    midTerm = 150 + (month - 6) * 40;
+                } else {
+                    midTerm = 630 + (month - 18) * 45;
+                }
+                
+                // 长期现金流（房产/版权）
+                let longTerm = 0;
+                if (month <= 12) {
+                    longTerm = Math.pow(month, 1.1) * 5;
+                } else if (month <= 24) {
+                    longTerm = 70 + Math.pow(month - 12, 1.8) * 8;
+                } else {
+                    longTerm = 800 + Math.pow(month - 24, 2) * 25;
+                }
+                
+                data.push({
+                    month,
+                    shortTerm: Math.round(shortTerm),
+                    midTerm: Math.round(midTerm),
+                    longTerm: Math.round(longTerm)
+                });
+            }
+            
+            return data;
+        };
+        
+        // 创建现金流图表
+        const createChart = () => {
+            const data = generateData();
+            const margin = {top: 40, right: 80, bottom: 60, left: 80};
+            const width = document.getElementById('cashflow-chart').offsetWidth - margin.left - margin.right;
+            const height = document.getElementById('cashflow-chart').offsetHeight - margin.top - margin.bottom;
+            
+            // 清除之前的图表
+            d3.select("#cashflow-chart").html("");
+            
+            // 创建SVG元素
+            const svg = d3.select("#cashflow-chart")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+            // 创建比例尺
+            const xScale = d3.scaleLinear()
+                .domain([0, 36])
+                .range([0, width]);
+            
+            const yScale = d3.scaleLinear()
+                .domain([0, 6000])
+                .range([height, 0]);
+            
+            // 创建坐标轴
+            const xAxis = d3.axisBottom(xScale)
+                .ticks(12)
+                .tickFormat(d => `${d}个月`);
+            
+            const yAxis = d3.axisLeft(yScale)
+                .ticks(6)
+                .tickFormat(d => `¥${d3.format(",")(d)}`);
+            
+            svg.append("g")
+                .attr("class", "axis")
+                .attr("transform", `translate(0,${height})`)
+                .call(xAxis);
+            
+            svg.append("g")
+                .attr("class", "axis")
+                .call(yAxis);
+            
+            // 添加坐标轴标签
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", `translate(${width / 2},${height + 45})`)
+                .style("text-anchor", "middle")
+                .text("时间（月）");
+            
+            svg.append("text")
+                .attr("class", "axis-label")
+                .attr("transform", "rotate(-90)")
+                .attr("y", -60)
+                .attr("x", -height / 2)
+                .style("text-anchor", "middle")
+                .text("月现金流（元）");
+            
+            // 添加图表标题
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", -10)
+                .attr("text-anchor", "middle")
+                .style("font-size", "18px")
+                .style("fill", "#2c5282")
+                .style("font-weight", "bold")
+                .text("现金流随时间变化趋势");
+            
+            // 定义曲线生成器
+            const line = d3.line()
+                .x(d => xScale(d.month))
+                .y(d => yScale(d.value))
+                .curve(d3.curveMonotoneX);
+            
+            // 添加关键区域标注
+            // 沉默期（0-6个月）
+            svg.append("rect")
+                .attr("x", xScale(0))
+                .attr("y", yScale(6000))
+                .attr("width", xScale(6) - xScale(0))
+                .attr("height", height - yScale(6000))
+                .attr("fill", "rgba(200, 200, 200, 0.15)")
+                .attr("stroke", "#cbd5e0")
+                .attr("stroke-width", 0.5);
+            
+            svg.append("text")
+                .attr("x", xScale(3))
+                .attr("y", height - 10)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#718096")
+                .text("沉默期");
+            
+            // 稳定期（6-18个月）
+            svg.append("rect")
+                .attr("x", xScale(6))
+                .attr("y", yScale(6000))
+                .attr("width", xScale(18) - xScale(6))
+                .attr("height", height - yScale(6000))
+                .attr("fill", "rgba(101, 163, 13, 0.08)")
+                .attr("stroke", "#84cc16")
+                .attr("stroke-width", 0.5)
+                .attr("stroke-dasharray", "2,2");
+            
+            // 复利爆发区（24个月后）
+            svg.append("rect")
+                .attr("x", xScale(24))
+                .attr("y", yScale(6000))
+                .attr("width", xScale(36) - xScale(24))
+                .attr("height", height - yScale(6000))
+                .attr("fill", "rgba(234, 179, 8, 0.08)")
+                .attr("stroke", "#eab308")
+                .attr("stroke-width", 0.5);
+            
+            svg.append("text")
+                .attr("x", xScale(30))
+                .attr("y", height - 10)
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("fill", "#ca8a04")
+                .text("复利爆发区");
+            
+            // 添加交叉点标注
+            svg.append("line")
+                .attr("x1", xScale(18))
+                .attr("y1", yScale(0))
+                .attr("x2", xScale(18))
+                .attr("y2", height)
+                .attr("stroke", "#94a3b8")
+                .attr("stroke-width", 0.5)
+                .attr("stroke-dasharray", "5,5");
+            
+            svg.append("text")
+                .attr("x", xScale(18) + 5)
+                .attr("y", 20)
+                .style("font-size", "12px")
+                .style("fill", "#64748b")
+                .text("18个月: 被动收入开始加速");
+            
+            // 绘制现金流曲线
+            const types = [
+                {key: "shortTerm", color: "#4299e1", label: "短期爆发型"},
+                {key: "midTerm", color: "#f56565", label: "中期稳定型"},
+                {key: "longTerm", color: "#ed8936", label: "长期指数型"}
+            ];
+            
+            // 创建tooltip
+            const tooltip = d3.select(".tooltip");
+            
+            types.forEach(type => {
+                const lineData = data.map(d => ({month: d.month, value: d[type.key]}));
+                
+                // 绘制曲线
+                svg.append("path")
+                    .datum(lineData)
+                    .attr("fill", "none")
+                    .attr("stroke", type.color)
+                    .attr("stroke-width", 3)
+                    .attr("d", line);
+                
+                // 添加数据点
+                svg.selectAll(`.dot-${type.key}`)
+                    .data(data.filter((d, i) => i % 3 === 0)) // 每3个月一个点
+                    .enter()
+                    .append("circle")
+                    .attr("class", `dot dot-${type.key}`)
+                    .attr("cx", d => xScale(d.month))
+                    .attr("cy", d => yScale(d[type.key]))
+                    .attr("r", 4)
+                    .attr("fill", type.color)
+                    .attr("stroke", "white")
+                    .attr("stroke-width", 1)
+                    .on("mouseover", function(event, d) {
+                        // 高亮当前点
+                        d3.select(this)
+                            .attr("r", 6)
+                            .attr("fill", d3.color(type.color).brighter(0.8));
+                        
+                        // 显示tooltip
+                        tooltip.style("opacity", 1)
+                            .html(`
+                                <h3>${type.label}</h3>
+                                <p><strong>时间点：</strong> ${d.month} 个月</p>
+                                <p><strong>月现金流：</strong> ¥${d3.format(",")(d[type.key])}</p>
+                                <p><strong>累计收益：</strong> ¥${d3.format(",")(d[type.key] * d.month)}</p>
+                            `)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 100) + "px");
+                    })
+                    .on("mouseout", function() {
+                        // 恢复原始状态
+                        d3.select(this)
+                            .attr("r", 4)
+                            .attr("fill", type.color);
+                        
+                        // 隐藏tooltip
+                        tooltip.style("opacity", 0);
+                    });
+                
+                // 添加曲线标签
+                const lastPoint = lineData[lineData.length - 1];
+                svg.append("text")
+                    .attr("x", xScale(lastPoint.month) + 10)
+                    .attr("y", yScale(lastPoint.value))
+                    .attr("dy", "0.35em")
+                    .style("font-size", "14px")
+                    .style("fill", type.color)
+                    .style("font-weight", "bold")
+                    .text(type.label);
+            });
+            
+            // 添加关键点标注
+            const addAnnotation = (month, text, yOffset = 0) => {
+                const yPos = types.reduce((min, type) => {
+                    const value = data.find(d => d.month === month)[type.key];
+                    return Math.min(min, yScale(value));
+                }, height) + yOffset;
+                
+                svg.append("line")
+                    .attr("x1", xScale(month))
+                    .attr("y1", yPos - 20)
+                    .attr("x2", xScale(month))
+                    .attr("y2", yPos)
+                    .attr("stroke", "#94a3b8")
+                    .attr("stroke-width", 1);
+                
+                svg.append("circle")
+                    .attr("cx", xScale(month))
+                    .attr("cy", yPos - 20)
+                    .attr("r", 4)
+                    .attr("fill", "#94a3b8");
+                
+                svg.append("text")
+                    .attr("x", xScale(month))
+                    .attr("y", yPos - 30)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .style("fill", "#475569")
+                    .text(text);
+            };
+            
+            addAnnotation(6, "副业收入超过¥2000");
+            addAnnotation(18, "被动收入交叉点", -50);
+            addAnnotation(24, "复利效应显现", -80);
+        };
+        
+        // 初始化图表
+        createChart();
+        
+        // 响应窗口大小变化
+        window.addEventListener("resize", createChart);
+    </script>
+</body>
+</html>
